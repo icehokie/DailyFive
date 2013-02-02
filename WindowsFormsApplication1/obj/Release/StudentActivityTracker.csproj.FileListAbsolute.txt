@@ -1,0 +1,9 @@
+C:\Users\Justin\Documents\Visual Studio 2012\Projects\WindowsFormsApplication1\WindowsFormsApplication1\obj\Release\StudentActivityTracker.csproj.GenerateResource.Cache
+C:\Users\Justin\Documents\Visual Studio 2012\Projects\WindowsFormsApplication1\WindowsFormsApplication1\bin\Release\DailyFive.exe.config
+C:\Users\Justin\Documents\Visual Studio 2012\Projects\WindowsFormsApplication1\WindowsFormsApplication1\bin\Release\DailyFive.exe
+C:\Users\Justin\Documents\Visual Studio 2012\Projects\WindowsFormsApplication1\WindowsFormsApplication1\bin\Release\DailyFive.pdb
+C:\Users\Justin\Documents\Visual Studio 2012\Projects\WindowsFormsApplication1\WindowsFormsApplication1\obj\Release\StudentActivityTracker.Properties.Resources.resources
+C:\Users\Justin\Documents\Visual Studio 2012\Projects\WindowsFormsApplication1\WindowsFormsApplication1\obj\Release\DailyFive.exe
+C:\Users\Justin\Documents\Visual Studio 2012\Projects\WindowsFormsApplication1\WindowsFormsApplication1\obj\Release\DailyFive.pdb
+C:\Users\Justin\Documents\Visual Studio 2012\Projects\WindowsFormsApplication1\WindowsFormsApplication1\obj\Release\StudentActivityTracker.csprojResolveAssemblyReference.cache
+C:\Users\Justin\Documents\Visual Studio 2012\Projects\WindowsFormsApplication1\WindowsFormsApplication1\obj\Release\StudentActivityTracker.ActivityInput.resources
