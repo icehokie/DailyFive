@@ -35,13 +35,15 @@ namespace StudentActivityTracker
             InitializeComponent();
             ConnectToAccess();
 
+            //TODO: Probably need to figure out how to resize now that there is the capability
             fState = new FormState();
-            fState.Maximize(this);
+            //fState.Maximize(this);
             this.Text = "Daily Five";
             this.MinimizeBox = true;
 
         }
 
+        //This needs to be it's own class...would clean up all the DB Calls tremendously
         public void ConnectToAccess()
         {
             ds1 = new DataSet();
@@ -49,8 +51,6 @@ namespace StudentActivityTracker
 
             System.Data.OleDb.OleDbConnection conn;
             conn = new System.Data.OleDb.OleDbConnection();
-            //conn.ConnectionString = @"Provider=Microsoft.Jet.OLEDB.4.0;" +
-                //@"Data source= C:\Users\Justin\Documents\DailyFive.mdb;";
             conn.ConnectionString = @"Provider=Microsoft.Jet.OLEDB.4.0;" +
                 @"Data source= DailyFive.mdb;";
 
@@ -83,6 +83,235 @@ namespace StudentActivityTracker
             ctrl.Size = parent.Size;
         }
 
+        private void InitializeBoard()
+        {
+            int studentCount = ds1.Tables["Students"].Rows.Count;
+            int activityCount = ds1.Tables["Activities"].Rows.Count;
+
+            DataRow dr = ds1.Tables["Students"].Rows[0];
+            TabControl bg = new TabControl();
+            bg.Name = "backgroundPage";
+
+            TabPage tp1 = new TabPage();
+            tp1.Name = "studentPage0";
+            tp1.TabIndex = 0;
+
+            DataRow dr2 = ds1.Tables["Students"].Rows[0];
+            for (int i = 0; i < studentCount; i++)
+            {
+                //if we are at the maximum for this page, create a new one
+                if (i > 0 && i % PAGE_TOTAL == 0)
+                {
+                    Button pageNext = new Button();
+                    pageNext.Text = "Next";
+                    pageNext.Click += new EventHandler(this.NextBtn_Click);
+                    pageNext.Name = tp1.Name + "Next";
+                    tp1.Controls.Add(pageNext);
+
+                    bg.Controls.Add(tp1);
+
+                    tp1 = new TabPage();
+                    tp1.Name = "studentPage" + i / PAGE_TOTAL;
+                    Button pagePrev = new Button();
+                    pagePrev.Text = "Previous";
+                    pagePrev.Name = tp1.Name + "Prev";
+                    pagePrev.Click += new EventHandler(this.PrevBtn_Click);
+                    tp1.Controls.Add(pagePrev);
+                }
+
+                GroupBox studentGroup = new GroupBox();
+                studentGroup.Padding = DefaultPadding;
+                studentGroup.Name = "" + i;
+
+                GroupBox nameGroup = new GroupBox();
+                nameGroup.Name = "nameGroup" + i;
+                Label studentFirstName = new Label();
+                studentFirstName.Name = "studentFirstName" + i;
+                Label studentLastName = new Label();
+                studentLastName.Name = "studentLastName" + i;
+
+                studentFirstName.Text = ds1.Tables["Students"].Rows[i].ItemArray.GetValue(1).ToString();
+                studentLastName.Text = ds1.Tables["Students"].Rows[i].ItemArray.GetValue(2).ToString();
+
+                studentFirstName.AutoSize = true;
+                studentLastName.AutoSize = true;
+
+                nameGroup.Controls.Add(studentFirstName);
+                nameGroup.Controls.Add(studentLastName);
+
+                studentGroup.Controls.Add(nameGroup);
+
+                for (int j = 0; j < activityCount; j++)
+                {
+                    CheckBox newButton = new CheckBox();
+                    newButton.Appearance = Appearance.Button;
+                    newButton.Text = ds1.Tables["Activities"].Rows[j].ItemArray.GetValue(0).ToString();
+                    newButton.TextAlign = ContentAlignment.MiddleCenter;
+                    newButton.Click += new EventHandler(this.ActivityBtn_Click);
+                    newButton.Name = "student" + i + "Activity" + j;
+                    studentGroup.Controls.Add(newButton);
+                }
+                tp1.Controls.Add(studentGroup);
+            }
+            bg.TabPages.Add(tp1);
+
+            TabPage controlPage = new TabPage();
+            Button saveButton = new Button();
+            saveButton.Text = "Save";
+            controlPage.Controls.Add(saveButton);
+            saveButton.Click += new EventHandler(this.SaveBtn_Click);
+
+            DateTimePicker controlDate = new DateTimePicker();
+            controlDate.Value = curDate;
+            controlPage.Controls.Add(controlDate);
+            controlDate.ValueChanged += new EventHandler(this.ControlDate_ValueChanged);
+            bg.TabPages.Add(controlPage);
+            this.Controls.Add(bg);
+        }
+
+        /**
+         * This draws the board and sets the location of all the controls.  Seperated out
+         * from the Initialization to allow resize
+         * 
+         * NOTE: THIS SHOULD ONLY BE CALLED AFTER InitializeBoard
+         */
+        private void DrawBoard()
+        {
+            int windowWidth = Control.FromHandle(GetForegroundWindow()).Width;
+            int windowHeight = Control.FromHandle(GetForegroundWindow()).Height;
+            int vPadding = (int)(windowHeight / 60.0);
+            int hPadding = (int)(windowWidth / 80.0);
+            int hSize = (int)(windowWidth / 5.4);
+            int vSize = (int)(windowHeight / 1.45);
+            int studentCount = ds1.Tables["Students"].Rows.Count;
+            int activityCount = ds1.Tables["Activities"].Rows.Count;
+            int buttonHeight = (int)(vSize - vSize / 4 - 5 * 1.0) / activityCount;
+            Font buttonFont = new Font("Arial", buttonHeight / 3);
+            Font navFont = new Font("Arial", buttonHeight / 6);
+            TabControl bg = (TabControl)this.Controls.Find("backgroundPage", false)[0];
+
+            //TODO::Figure out what it going on here....
+            int strLength = MAX_ACTIVITY_LEN < 8 ? 8 : MAX_ACTIVITY_LEN;
+            String tempSize = "";
+            for (int i = 0; i < strLength; i++)
+            {
+                tempSize = tempSize + "A";
+            }
+            float prevBFontSize = buttonFont.Size;
+            SizeF sizeB;
+            using (System.Drawing.Graphics graphics = System.Drawing.Graphics.FromImage(new Bitmap(1, 1)))
+            {
+                sizeB = graphics.MeasureString(tempSize, buttonFont);
+            }
+            //ENDTODO
+
+            float desiredBSize = buttonHeight - 5;
+            float maxBFontHeight = (buttonFont.Size * desiredBSize) / sizeB.Height;
+            float maxBFontWidth = (buttonFont.Size * (hSize - 15)) / sizeB.Width;
+            float newBFontSize = maxBFontHeight < maxBFontWidth ? maxBFontHeight : maxBFontWidth;
+            buttonFont = new Font("Arial", newBFontSize);
+            navFont = new Font("Arial", newBFontSize);
+            Point listOffset = new Point(0, 5);
+            TabPage tp1 = (TabPage)bg.Controls.Find("studentPage0", false)[0];
+
+            bg.Height = windowHeight;
+            bg.Width = windowWidth;
+
+            Point topLeft = new Point(4, 8);
+            
+            for (int i = 0; i < studentCount; i++)
+            {
+                //If we are at the end of the page get the next one
+                if (i > 0 && i % PAGE_TOTAL == 0)
+                {
+                    Button pageNext = (Button)tp1.Controls.Find(tp1.Name + "Next", false)[0];
+                    pageNext.Location = new Point(hSize * 4 + hSize / 2 + hPadding * 5, (int)(vSize + (windowHeight - vSize) / 2.5 + vPadding * 2));
+                    pageNext.Width = (int)(hSize / 2.0);
+                    pageNext.Height = (int)(buttonHeight - 5);
+                    pageNext.Font = navFont;
+
+                    tp1 = (TabPage)bg.Controls.Find("studentPage" + i / PAGE_TOTAL, false)[0]; ;
+                    Button pagePrev = (Button)tp1.Controls.Find(tp1.Name+"Prev",false)[0];
+                    pagePrev.Location = new Point(hSize * 4 + hPadding * 5, (int)(vSize + (windowHeight - vSize) / 2.5 + vPadding * 2));
+                    pagePrev.Width = (int)(hSize / 2.0);
+                    pagePrev.Height = (int)(buttonHeight - 5);
+                    pagePrev.Font = navFont;
+                }
+                Point curLoc = new Point((int)((i % 5 + 1) * hPadding + (i % 5) * hSize),
+                      (int)((windowHeight - vSize) / 2.5));
+
+                GroupBox studentGroup = (GroupBox)tp1.Controls.Find("" + i,false)[0];
+                studentGroup.Height = vSize;
+                studentGroup.Width = hSize;
+                studentGroup.Location = curLoc;
+
+                GroupBox nameGroup = (GroupBox)studentGroup.Controls.Find("nameGroup" + i, false)[0];
+                nameGroup.Width = hSize - 7;
+                nameGroup.Height = vSize / 4;
+                nameGroup.Location = topLeft;
+
+                Label studentFirstName = (Label)nameGroup.Controls.Find("studentFirstName"+i, false)[0];
+                Label studentLastName = (Label)nameGroup.Controls.Find("studentLastName"+i, false)[0];
+
+                //TODO::If we can get the longest name beforehand we can calculate this once for all
+                FormatStudentName(ref studentFirstName, ref studentLastName, nameGroup);
+
+                CreateButtonBackgrounds(nameGroup.Width - 8, buttonHeight - 5);
+                for (int j = 0; j < activityCount; j++)
+                {
+                    CheckBox newButton = (CheckBox)studentGroup.Controls.Find("student"+i+"Activity"+j,false)[0];
+                    newButton.Font = buttonFont;
+                    newButton.Location = new Point(nameGroup.Left + 5, nameGroup.Bottom + 5 + j * buttonHeight);
+                    newButton.Height = buttonHeight - 5;
+                    newButton.Width = nameGroup.Width - 8;
+                }
+            }
+
+            /**TODO:  SET THE CONTROL DATE POSITIOn
+            DateTimePicker controlDate = new DateTimePicker();
+            controlDate.Value = curDate;
+            controlDate.Left = saveButton.Left;
+            controlDate.Top = saveButton.Bottom + 5;
+             */
+
+
+        }
+
+        /**
+         * Calculates the size the student name font can be based on the length and the size of the group.
+         */
+        private void FormatStudentName(ref Label studentFirstName, ref Label studentLastName, GroupBox nameGroup)
+        {
+            SizeF sizeFirst, sizeLast;
+            using (System.Drawing.Graphics graphics = System.Drawing.Graphics.FromImage(new Bitmap(1, 1)))
+            {
+                sizeFirst = graphics.MeasureString(studentFirstName.Text, studentFirstName.Font);
+                sizeLast = graphics.MeasureString(studentLastName.Text, studentLastName.Font);
+            }
+
+            float desiredSize = nameGroup.Height / (float)(3.0);
+            float maxFontHeight = (studentFirstName.Font.Size * desiredSize) / sizeFirst.Height;
+            float maxFontWidth = sizeFirst.Width < sizeLast.Width ? (studentLastName.Font.Size * (nameGroup.Width - 5)) / sizeLast.Width
+                : (studentFirstName.Font.Size * (nameGroup.Width - 5)) / sizeFirst.Width;
+            float newFontSize = maxFontHeight < maxFontWidth ? maxFontHeight : maxFontWidth;
+
+            Font nameFont = new Font("Arial", newFontSize);
+            studentFirstName.Font = nameFont;
+            studentLastName.Font = nameFont;
+
+            using (System.Drawing.Graphics graphics = System.Drawing.Graphics.FromImage(new Bitmap(1, 1)))
+            {
+                sizeFirst = graphics.MeasureString(studentFirstName.Text, studentFirstName.Font);
+                sizeLast = graphics.MeasureString(studentLastName.Text, studentLastName.Font);
+            }
+
+            studentFirstName.Location = new Point((int)(nameGroup.Width - sizeFirst.Width) / 2, nameGroup.Height / 6);
+            studentLastName.Location = new Point((int)(nameGroup.Width - sizeLast.Width) / 2, (int)(nameGroup.Height - sizeLast.Height - nameGroup.Height / 6));
+        }
+
+        /**
+         * TODO::Needs to be removed
+         */
         private void DisplayActivities()
         {
             int windowWidth = Control.FromHandle(GetForegroundWindow()).Width;
@@ -271,6 +500,11 @@ namespace StudentActivityTracker
             ControlPaint.DrawBorder3D(e.Graphics, panel1.ClientRectangle, Border3DStyle.Raised, Border3DSide.All);
         }
 
+        private void Form_Resize(object sender, System.EventArgs e)
+        {
+            DrawBoard();
+        }
+
         void CreateButtonBackgrounds(int height, int width)
         {
             bgList.Clear();
@@ -342,6 +576,11 @@ namespace StudentActivityTracker
             return bgList[numVal];
         }
 
+
+        /**
+         * Pretty sure can rewrite this using Find("controlName", true) 
+         * and just using the background control instead of looping through everything
+         */
         void LoadDate()
         {
             System.Data.OleDb.OleDbConnection conn;
@@ -552,7 +791,9 @@ namespace StudentActivityTracker
         void Page_Load(object sender, EventArgs e)
         {
             // Write status to file.
-            DisplayActivities();
+            //DisplayActivities();
+            InitializeBoard();
+            DrawBoard();
             LoadDate();
         }
 

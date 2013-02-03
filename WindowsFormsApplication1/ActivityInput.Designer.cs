@@ -38,12 +38,13 @@
             this.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
             this.BackgroundImageLayout = System.Windows.Forms.ImageLayout.None;
             this.ClientSize = new System.Drawing.Size(784, 562);
-            this.MaximizeBox = false;
+            this.MaximumSize = new System.Drawing.Size(1600, 1600);
             this.MinimizeBox = false;
             this.Name = "ActivityInput";
-            this.Text = "Form1";
+            this.Text = "Daily Five";
             this.WindowState = System.Windows.Forms.FormWindowState.Maximized;
             this.Load += new System.EventHandler(this.Page_Load);
+            this.ResizeEnd += new System.EventHandler(this.Form_Resize);
             this.ResumeLayout(false);
 
         }
