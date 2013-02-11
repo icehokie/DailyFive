@@ -1,14 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Data;
 using System.Drawing;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Runtime.InteropServices;
-using System.Data.OleDb;
+//using System.Data.OleDb;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms.Design;
 using Owf.Controls;
@@ -18,13 +17,18 @@ namespace StudentActivityTracker
 
     public partial class ActivityInput : Form
     {
+        static int MAX_COUNT = 2;
+        static int PERIOD_COUNT = 2;
+
         [DllImport("user32.dll")]
         static extern IntPtr GetForegroundWindow();
-        DataSet ds1;
+
         FormState fState;
         DateTime curDate = DateTime.Now;
         int PAGE_TOTAL = 5;
         List<Bitmap> bgList;
+        DailyFiveDB db;
+        int[,] activityPeriodMap;
         
         //Need to dynanimaclly determine this in future.
         int MAX_ACTIVITY_LEN = 15;
@@ -32,8 +36,10 @@ namespace StudentActivityTracker
         public ActivityInput()
         {
             bgList = new List<Bitmap>();
+            db = new DailyFiveDB(curDate);
+            activityPeriodMap = new int[db.getActivityCount(), PERIOD_COUNT]; 
             InitializeComponent();
-            ConnectToAccess();
+
 
             //TODO: Probably need to figure out how to resize now that there is the capability
             fState = new FormState();
@@ -43,56 +49,20 @@ namespace StudentActivityTracker
 
         }
 
-        //This needs to be it's own class...would clean up all the DB Calls tremendously
-        public void ConnectToAccess()
-        {
-            ds1 = new DataSet();
-            System.Data.OleDb.OleDbDataAdapter da;
-
-            System.Data.OleDb.OleDbConnection conn;
-            conn = new System.Data.OleDb.OleDbConnection();
-            conn.ConnectionString = @"Provider=Microsoft.Jet.OLEDB.4.0;" +
-                @"Data source= DailyFive.mdb;";
-
-            
-            try
-            {
-                conn.Open();
-                String sql = "SELECT ActivityName From Activities";
-                da = new System.Data.OleDb.OleDbDataAdapter(sql, conn);
-                da.Fill(ds1, "Activities");
-                sql = "SELECT * From Students";
-                da = new System.Data.OleDb.OleDbDataAdapter(sql, conn);
-                da.Fill(ds1, "Students");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Failed to connect to data source");
-                MessageBox.Show(ex.Message);
-            }
-            finally
-            {
-                conn.Close();
-            }
-        }
-
         /**
          * Creates the initial buttons and sets their data.
          */
         private void InitializeBoard()
         {
-            int studentCount = ds1.Tables["Students"].Rows.Count;
-            int activityCount = ds1.Tables["Activities"].Rows.Count;
+            int studentCount = db.getStudentCount();
+            int activityCount = db.getActivityCount();
 
-            DataRow dr = ds1.Tables["Students"].Rows[0];
             TabControl bg = new TabControl();
             bg.Name = "backgroundPage";
 
             TabPage tp1 = new TabPage();
             tp1.Name = "studentPage0";
             tp1.TabIndex = 0;
-
-            DataRow dr2 = ds1.Tables["Students"].Rows[0];
             for (int i = 0; i < studentCount; i++)
             {
                 //if we are at the maximum for this page, create a new one
@@ -117,7 +87,8 @@ namespace StudentActivityTracker
 
                 GroupBox studentGroup = new GroupBox();
                 studentGroup.Padding = DefaultPadding;
-                studentGroup.Name = "" + i;
+                int idNumber = db.getStudentIdForNumber(i);
+                studentGroup.Name = "" + idNumber;
 
                 GroupBox nameGroup = new GroupBox();
                 nameGroup.Name = "nameGroup" + i;
@@ -126,8 +97,8 @@ namespace StudentActivityTracker
                 Label studentLastName = new Label();
                 studentLastName.Name = "studentLastName" + i;
 
-                studentFirstName.Text = ds1.Tables["Students"].Rows[i].ItemArray.GetValue(1).ToString();
-                studentLastName.Text = ds1.Tables["Students"].Rows[i].ItemArray.GetValue(2).ToString();
+                studentFirstName.Text = db.getStudentFirstName(i);
+                studentLastName.Text = db.getStudentLastName(i);
 
                 studentFirstName.AutoSize = true;
                 studentLastName.AutoSize = true;
@@ -141,10 +112,10 @@ namespace StudentActivityTracker
                 {
                     CheckBox newButton = new CheckBox();
                     newButton.Appearance = Appearance.Button;
-                    newButton.Text = ds1.Tables["Activities"].Rows[j].ItemArray.GetValue(0).ToString();
+                    newButton.Text = db.getActivityFromRow(j);
                     newButton.TextAlign = ContentAlignment.MiddleCenter;
                     newButton.Click += new EventHandler(this.ActivityBtn_Click);
-                    newButton.Name = "student" + i + "Activity" + j;
+                    newButton.Name = "student" + idNumber + "Activity" + j;
                     studentGroup.Controls.Add(newButton);
                 }
                 tp1.Controls.Add(studentGroup);
@@ -162,14 +133,15 @@ namespace StudentActivityTracker
          */
         private void DrawBoard()
         {
+            //This breaks if it's called if we aren't the active window....
             int windowWidth = Control.FromHandle(GetForegroundWindow()).Width;
             int windowHeight = Control.FromHandle(GetForegroundWindow()).Height;
             int vPadding = (int)(windowHeight / 60.0);
             int hPadding = (int)(windowWidth / 80.0);
             int hSize = (int)(windowWidth / 5.4);
             int vSize = (int)(windowHeight / 1.45);
-            int studentCount = ds1.Tables["Students"].Rows.Count;
-            int activityCount = ds1.Tables["Activities"].Rows.Count;
+            int studentCount = db.getStudentCount();
+            int activityCount = db.getActivityCount();
             int buttonHeight = (int)(vSize - vSize / 4 - 5 * 1.0) / activityCount;
             Font buttonFont = new Font("Arial", buttonHeight / 3);
             Font navFont = new Font("Arial", buttonHeight / 6);
@@ -225,7 +197,8 @@ namespace StudentActivityTracker
                 Point curLoc = new Point((int)((i % 5 + 1) * hPadding + (i % 5) * hSize),
                       (int)((windowHeight - vSize) / 2.5));
 
-                GroupBox studentGroup = (GroupBox)tp1.Controls.Find("" + i,false)[0];
+                int idNumber = db.getStudentIdForNumber(i);
+                GroupBox studentGroup = (GroupBox)tp1.Controls.Find("" + idNumber, false)[0];
                 studentGroup.Height = vSize;
                 studentGroup.Width = hSize;
                 studentGroup.Location = curLoc;
@@ -244,7 +217,7 @@ namespace StudentActivityTracker
                 CreateButtonBackgrounds(nameGroup.Width - 8, buttonHeight - 5);
                 for (int j = 0; j < activityCount; j++)
                 {
-                    CheckBox newButton = (CheckBox)studentGroup.Controls.Find("student"+i+"Activity"+j,false)[0];
+                    CheckBox newButton = (CheckBox)studentGroup.Controls.Find("student" + idNumber + "Activity" + j, false)[0];
                     newButton.Font = buttonFont;
                     newButton.Location = new Point(nameGroup.Left + 5, nameGroup.Bottom + 5 + j * buttonHeight);
                     newButton.Height = buttonHeight - 5;
@@ -420,126 +393,74 @@ namespace StudentActivityTracker
             return bgList[numVal];
         }
 
+        /**
+         * Reset the activity -> period Map
+         */
+        void clearActivityPeriodMap()
+        {
+            int activityCount = db.getActivityCount();
+            for (int i = 0; i < activityCount; i++)
+            {
+                for (int j = 0; j < PERIOD_COUNT; j++)
+                {
+                    activityPeriodMap[i, j] = 0;
+                }
+            }
+        }
+
 
         /**
-         * Pretty sure can rewrite this using Find("controlName", true) 
-         * and just using the background control instead of looping through everything
+         * Set the activity visibility and color based on the joins
+         * for the current date/week
          */
         void LoadDate()
         {
-            System.Data.OleDb.OleDbConnection conn;
-            conn = new System.Data.OleDb.OleDbConnection();
-            //conn.ConnectionString = @"Provider=Microsoft.Jet.OLEDB.4.0;" +
-                //@"Data source= C:\Users\Justin\Documents\DailyFive.mdb;";
-            conn.ConnectionString = @"Provider=Microsoft.Jet.OLEDB.4.0;" +
-                @"Data source= DailyFive.mdb;";
+            clearActivityPeriodMap();
+            int studentCount = db.getStudentCount();
+            int activityCount = db.getActivityCount();
 
-            try
+            //Loop through all the students
+            for (int i = 0; i < studentCount; i++)
             {
-                conn.Open();
-                OleDbDataAdapter da = new OleDbDataAdapter();
-                Boolean isSunday = false;
-                String earlierActivitiesString = "";
-                String includeEarlierActivities = "";
+                int idNumber = db.getStudentIdForNumber(i);
+                //Load a student group to save time on the 'find's for the activities in the next loop
+                GroupBox studentGroup = (GroupBox)this.Controls.Find("" + idNumber, true)[0];
 
-                if (!(curDate.DayOfWeek > DayOfWeek.Sunday))
+                //Loop through each activity for this student
+                for(int j = 0; j < activityCount; j++)
                 {
-                    isSunday = true;
-                }
-                else
-                {
-                    DateTime date = curDate;
-                    date = date.AddDays(-1);
-                    earlierActivitiesString = "(";
-                    for(int i = (int)date.DayOfWeek; i >= (int)DayOfWeek.Sunday; i-- )
+                    CheckBox curActivity = (CheckBox)studentGroup.Controls.Find("student" + idNumber + "Activity" + j, false)[0];
+                    String period = db.getCurrentStudentActivityPeriod(idNumber,db.getActivityKeyFromRow(j));
+                    
+                    //if the box actually is checked
+                    if (period != "0")
                     {
-                        earlierActivitiesString = earlierActivitiesString + includeEarlierActivities +
-                            "SchoolDay = '" + date.Date.ToString("d") + "'";
-                        includeEarlierActivities = " OR ";
-                        date = date.AddDays(-1);
+                        curActivity.Tag = period;
+                        curActivity.Checked = true;
+                        activityPeriodMap[j,atoi(period) -1]++;
                     }
-                    earlierActivitiesString = earlierActivitiesString + ")";
-                }
-
-                String sql = "SELECT * FROM StudentActivityJoin WHERE SchoolDay='" + curDate.Date.ToString("d") + "'"
-                    +includeEarlierActivities + earlierActivitiesString;
-                DataSet joinRecords = new DataSet();
-                da = new OleDbDataAdapter(sql, conn);
-                da.Fill(joinRecords, "dailyJoins");
-                TabControl tc = Controls["backgroundPage"] as TabControl;
-                int studentCount = ds1.Tables["Students"].Rows.Count;
-                int activityCount = ds1.Tables["Activities"].Rows.Count;
-                TabPage tp = tc.Controls["studentPage0"] as TabPage;
-
-                for (int i = 0; i < studentCount; i++)
-                {
-                    GroupBox studentGroup = tp.Controls["" + i] as GroupBox;
-                    foreach (var ctl in studentGroup.Controls)
+                    else
                     {
-                        if (ctl is CheckBox)
-                        {
-                            CheckBox curButton = (CheckBox)ctl;
-                            string s = curButton.Text;
-                            DataRow[] currentlyCheckedRows =
-                                joinRecords.Tables["dailyJoins"].Select("Student ='" + i
-                                        + "' AND Activity = '" + curButton.Text + "' AND SchoolDay = '"
-                                        + curDate.Date.ToString("d") + "'");
-
-                            if (currentlyCheckedRows.Length > 0)
-                            {
-                                String period = currentlyCheckedRows[0].Field<string>("Period");
-                                curButton.Tag = period;
-                                curButton.Checked = true;
-                                curButton.BackgroundImage = GetBackgroundForClick(period);
-                            }
-                            else
-                            {
-                                curButton.Checked = false;
-                                curButton.BackgroundImage = GetBackgroundForClick();
-                            }
-                            if (!isSunday)
-                            {
-                                DataRow[] totalActivityCount = joinRecords.Tables["dailyJoins"].Select("Student = '" + i
-                                    + "' AND " + earlierActivitiesString);
-                                DataRow[] previouslyUsedActivities =
-                                    joinRecords.Tables["dailyJoins"].Select("Student = '" + i
-                                        + "' AND Activity = '" + curButton.Text + "' AND "
-                                        + earlierActivitiesString);
-                                if (totalActivityCount.Length >= activityCount)
-                                {
-                                    curButton.Visible = true;
-                                }
-                                else if (previouslyUsedActivities.Length > 0)
-                                {
-                                    curButton.Visible = false;
-                                }
-                                else
-                                {
-                                    curButton.Visible = true;
-                                }
-                            }
-                            else
-                            {
-                                curButton.Visible = true;
-                            }
-                        }
+                        curActivity.Checked = false;
                     }
-                    if ((i + 1) % PAGE_TOTAL == 0)
+                    curActivity.BackgroundImage = GetBackgroundForClick(period);
+                    
+                    //if all the activities have already been used, need to make everything available
+                    if (db.totalStudentActivitesForWeek(idNumber) >= activityCount)
                     {
-                        //if there's an exact even amount this returns null for
-                        //tp but won't advance to the next loop
-                        tp = tc.Controls["studentPage" + ((i + 1) / PAGE_TOTAL)] as TabPage;
+                        curActivity.Visible = true;
+                    }
+                    //if all activites have not been used but this activity has, should not be selectable
+                    else if (db.activityUsedEarlierInWeek(idNumber, db.getActivityKeyFromRow(j)))
+                    {
+                        curActivity.Visible = false;
+                    }
+                    //if it hasn't been used, make it visible
+                    else
+                    {
+                        curActivity.Visible = true;
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Failed to Load Data");
-                MessageBox.Show(ex.Message);
-            }
-            finally
-            {
-                conn.Close();
             }
         }
 
@@ -553,82 +474,37 @@ namespace StudentActivityTracker
         }
 
         /**
-         * Goes through all the controls and saves the changed items to the db..
          * 
-         * TODO: Can be cleaned up with the "Find" method and can probably be combined with
-         * LoadDate to remove duplicated code
          */
         void SaveChanges()
         {
+            int studentCount = db.getStudentCount();
+            int activityCount = db.getActivityCount();
+            
+            //Clear data for today and we'll do clean inserts for the rest
+            db.clearDailyData();
 
-            System.Data.OleDb.OleDbConnection conn;
-            conn = new System.Data.OleDb.OleDbConnection();
-            conn.ConnectionString = @"Provider=Microsoft.Jet.OLEDB.4.0;" +
-                @"Data source= DailyFive.mdb;";
-
-            try
+            //Loop through all the students
+            for (int i = 0; i < studentCount; i++)
             {
-                conn.Open();
-                OleDbDataAdapter da = new OleDbDataAdapter();
-                String sql = "SELECT * FROM StudentActivityJoin WHERE SchoolDay='" + curDate.Date.ToString("d") + "'";
-                DataSet joinRecords = new DataSet();
-                da = new OleDbDataAdapter(sql, conn);
-                da.Fill(joinRecords, "dailyJoins");
-                OleDbCommandBuilder cb = new OleDbCommandBuilder(da);
+                int idNumber  = db.getStudentIdForNumber(i);
+                //Load a student group to save time on the 'find's for the activities in the next loop
+                GroupBox studentGroup = (GroupBox)this.Controls.Find("" + idNumber, true)[0];
 
-                TabControl tc = Controls["backgroundPage"] as TabControl;
-                int studentCount = ds1.Tables["Students"].Rows.Count;
-                TabPage tp = tc.Controls["studentPage0"] as TabPage;
-
-                int oldJoin = joinRecords.Tables["dailyJoins"].Rows.Count;
-                for (int i = oldJoin - 1; i >= 0; i--)
+                //Loop through each activity for this student
+                for (int j = 0; j < activityCount; j++)
                 {
-                    joinRecords.Tables["dailyJoins"].Rows[i].Delete();
-                    da.Update(joinRecords, "dailyJoins");
-                }
-                for (int i = 0; i < studentCount; i++)
-                {
-                    GroupBox studentGroup = tp.Controls["" + i] as GroupBox;
-                    foreach (var ctl in studentGroup.Controls)
+                    CheckBox curActivity = (CheckBox)studentGroup.Controls.Find("student" + idNumber + "Activity" + j, false)[0];
+                    if (curActivity.Checked)
                     {
-                        if (ctl is CheckBox)
-                        {
-                            CheckBox curButton = (CheckBox)ctl;
-                            if (curButton.Checked)
-                            {
-                                DataRow dr = joinRecords.Tables["dailyJoins"].NewRow();
-                                dr["Student"] = ""+i;
-                                dr["SchoolDay"] = curDate.Date.ToString("d");
-                                dr["Activity"] = curButton.Text;
-                                dr["Period"] = curButton.Tag;
-                                joinRecords.Tables["dailyJoins"].Rows.Add(dr);
-                                da.Update(joinRecords, "dailyJoins");
-
-                            }
-                        }
+                        db.SetCheckedForStudent(idNumber, db.getActivityKeyFromRow(j), (String)curActivity.Tag);
                     }
-                    if ((i + 1) % PAGE_TOTAL == 0)
-                    {
-                        //if there's an exact even amount this returns null for
-                        //tp but won't advance to the next loop
-                        tp = tc.Controls["studentPage" + ((i + 1) / PAGE_TOTAL)] as TabPage;
-                    }
-
                 }
-                string message = "Successfully Saved Daily Five Records";
-                string caption = "Save Completed";
-                MessageBoxButtons buttons = MessageBoxButtons.OK;
-                MessageBox.Show(message,caption,buttons);
             }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Failed to Save Data");
-                MessageBox.Show(ex.Message);
-            }
-            finally
-            {
-                conn.Close();
-            }
+            string message = "Successfully Saved Daily Five Records";
+            string caption = "Save Completed";
+            MessageBoxButtons buttons = MessageBoxButtons.OK;
+            MessageBox.Show(message, caption, buttons);
         }
 
         /**Whenever the date field on the control page changes values, call
@@ -653,89 +529,125 @@ namespace StudentActivityTracker
             LoadDate();
         }
 
-
         /**
-         * handler for when any of the activity buttons are clicked
-         * 
-         * Can definitely be re-written to use 'find'and seems to share 
-         * a lot of common code with LoadDate as well.  Probably the most important of
-         * methods to re-write...
-         */
+         * Handler for when any of the activity buttons are checekd
+         */ 
         void ActivityBtn_Click(Object sender,
                            EventArgs e)
         {
-            System.Data.OleDb.OleDbConnection conn;
-            conn = new System.Data.OleDb.OleDbConnection();
-            conn.ConnectionString = @"Provider=Microsoft.Jet.OLEDB.4.0;" +
-                @"Data source= DailyFive.mdb;";
-
-            // When the button is clicked,
-            // change the button text, and disable it.
             CheckBox clickedButton = (CheckBox)sender;
-            GroupBox parentGroup = clickedButton.Parent as GroupBox;
-            int activityCount = ds1.Tables["Activities"].Rows.Count;
-            int buttonCount = parentGroup.Controls.Count;
-            int invisibleCount = 0;
+            //GroupBox parentGroup = clickedButton.Parent as GroupBox;
+            int activityCount = db.getActivityCount();
+
             int clickedCount = 0;
+            bool allOthersInvisible = true;
             List<int> chosenPeriods = new List<int>();
-            foreach (var ctl in parentGroup.Controls)
-            {
-                if (ctl is CheckBox)
-                {
-                    CheckBox curButton = (CheckBox)ctl;
-                    if (!curButton.Equals(clickedButton) )
-                    {
-                        if (curButton.Checked)
-                        {
-                            clickedCount++;
-                            int curTag = 0;
-                            try
-                            {
-                                curTag = Convert.ToInt32(curButton.Tag);
-                            }
-                            catch
-                            {
-                            }
+            populateOtherStudentActivityInformation(clickedButton, ref chosenPeriods,
+                ref clickedCount, ref allOthersInvisible);
 
-                            chosenPeriods.Add(curTag);
-                        }
-                        if (!curButton.Visible)
-                        {
-                            invisibleCount++;
-                        }
-                    }
+            bool isValidClick = false;
+            String error = "";
+            int newPeriod = -1;
+            if (clickedButton.Checked)
+            {
+                newPeriod = getPotentialPeriod(ref clickedButton, ref clickedCount, ref chosenPeriods);
+                isValidClick = validateClick(clickedButton, clickedCount, newPeriod, ref error);
+            }
+            //This logic needs to change to allow more than 2
+            if (isValidClick)
+            {
+                checkButton(ref clickedButton, newPeriod);
+                if (allOthersInvisible && clickedButton.Checked)
+                {
+                    checkLastBoxEarly(ref clickedButton);
                 }
             }
-            if (clickedButton.Checked && clickedCount < 2)
-            {
-                bool found = false;
-                for (int i = 0; i < 2 && !found; i++)
-                {
-                    if (chosenPeriods.Count == 0)
-                    {
-                        found = true;
-                        clickedButton.BackgroundImage = GetBackgroundForClick("" + (i + 1));
-                        clickedButton.Tag = "" +( i + 1);
-                    }
-                    else if (chosenPeriods.Min() == i + 1)
-                    {
-                        chosenPeriods.Remove(chosenPeriods.Min());
-                    }
-                    else
-                    {
-                        found = true;
-                        clickedButton.BackgroundImage = GetBackgroundForClick("" + (i + 1));
-                        clickedButton.Tag = "" + (i + 1);
-                    }
-                }
 
-            }
-            if (clickedCount > 1)
+            else if (clickedButton.Checked)
             {
+                //if we have previously reached the 'max' selected for the day, cannot check this
                 clickedButton.Checked = false;
             }
-            //if we just checked the last box, make the rest of them visible
-            else if ((invisibleCount >= activityCount - 1) && clickedButton.Checked)
+            else if (!clickedButton.Checked)
+            {
+                uncheckButton(ref clickedButton);
+            }
+        }
+
+        private bool validateClick(CheckBox clickedButton, int otherButtonsClicked, int period, ref String error)
+        {
+            if (otherButtonsClicked >= MAX_COUNT)
+            {
+                error = "You are at the max amount for today, please unselect before trying again";
+                return false;
+            }
+            int activityNumber = db.getActivityKey(clickedButton.Text);
+            if (shouldPerformActivityCountValidation() && db.activityHasPeriodMax(activityNumber))
+            {
+                if(db.getActivityPeriodMax(activityNumber) <= getActivtyCountForPeriod(db.getActivityRowFromKey(activityNumber), period)) 
+                {
+                    error = "The maximum for this activity has been reached, please select a different one.";
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        /**
+         * Uses the activity period map to return the number of times that activity has been used in that
+         * period today.
+         */
+        private int getActivtyCountForPeriod(int activityNumber, int period)
+        {
+            return activityPeriodMap[activityNumber, period-1];
+        }
+
+        /**
+         * Expandable method for turning off the validation capability
+         */ 
+        private bool shouldPerformActivityCountValidation()
+        {
+            //Don't perform validation if in the past.
+            if (curDate.Date < DateTime.Now.Date)
+            {
+                return false;
+            }
+            return true;
+        }
+
+        /**
+         * Cleaner way to convert strings to integers.  Will crash and burn if it's not valid
+         * but makes the calls in the actual methods look much better.
+         */ 
+        public int atoi(String integer)
+        {
+            int toReturn = 0;
+            try
+            {
+                toReturn = Convert.ToInt32(integer);
+            }
+            catch
+            {
+                //Should never get here...
+            }
+            return toReturn;
+        }
+
+        /**
+         * Whenever we uncheck a button, we need to verify that we don't need to make the other activities
+         * invisible and unchecked.
+         */ 
+        private void uncheckButton(ref CheckBox clickedButton)
+        {
+            clickedButton.BackgroundImage = GetBackgroundForClick();
+            GroupBox parentGroup = clickedButton.Parent as GroupBox;
+            int studentId = atoi(parentGroup.Name);
+            int activityNumber = db.getActivityKey(clickedButton.Name);
+
+            int activityCount = db.getActivityCount();
+            int prevActivites = db.totalStudentActivitesForWeek(studentId);
+
+            if (prevActivites == activityCount - 1 && !db.activityUsedEarlierInWeek(studentId, activityNumber))
             {
                 foreach (var ctl in parentGroup.Controls)
                 {
@@ -744,78 +656,101 @@ namespace StudentActivityTracker
                         CheckBox curButton = (CheckBox)ctl;
                         if (!curButton.Equals(clickedButton))
                         {
-                            curButton.Visible = true;
+                            curButton.Visible = false;
                             curButton.Checked = false;
+                            curButton.BackgroundImage = GetBackgroundForClick();
+                            curButton.Tag = "";
                         }
                     }
                 }
             }
-                //if we just unchecked a box, make sure we're not in a scenario where we need to make everything invisible
-            else if (!clickedButton.Checked)
+        }
+
+        /**
+         * Check the box and format it correctly
+         */
+        private void checkButton(ref CheckBox clickedButton, int period)
+        {
+            clickedButton.BackgroundImage = GetBackgroundForClick("" + period);
+            clickedButton.Tag = "" + (period);
+            activityPeriodMap[db.getActivityRow(clickedButton.Text), period - 1]++;
+        }
+
+        /**
+         * return the potential period of the clicked button based on other information
+         */ 
+        private int getPotentialPeriod(ref CheckBox clickedButton, ref int clickedCount, ref List<int> chosenPeriods)
+        {
+            bool found = false;
+            //Figure out what period we are by counting and finding the first available number
+            for (int i = 0; i <= clickedCount && !found; i++)
             {
-                clickedButton.BackgroundImage = GetBackgroundForClick();
-                try
+                //if other periods are still checked and the lowest number still isn't available
+                if (chosenPeriods.Count > 0 && chosenPeriods.Min() == i + 1)
                 {
-                    conn.Open();
-                    OleDbDataAdapter da = new OleDbDataAdapter();
-                    String earlierActivitiesString = "";
-                    String includeEarlierActivities = "";
-                    //if we are sunday we can stop here (truthfully could stop if not thursday...)
-                    if ((curDate.DayOfWeek > DayOfWeek.Sunday))
-                    {
-                        DateTime date = curDate;
-                        date = date.AddDays(-1);
-                        earlierActivitiesString = "(";
-                        for (int i = (int)date.DayOfWeek; i >= (int)DayOfWeek.Sunday; i--)
-                        {
-                            earlierActivitiesString = earlierActivitiesString + includeEarlierActivities +
-                                "SchoolDay = '" + date.Date.ToString("d") + "'";
-                            includeEarlierActivities = " OR ";
-                            date = date.AddDays(-1);
-                        }
-                        earlierActivitiesString = earlierActivitiesString + ")";
-                        String sql = "SELECT * FROM StudentActivityJoin WHERE Student = '" + parentGroup.Name + "' AND "
-                            + earlierActivitiesString;
-                        DataSet joinRecords = new DataSet();
-                        da = new OleDbDataAdapter(sql, conn);
-                        da.Fill(joinRecords, "dailyJoins");
-
-                        DataRow[] previouslyUsedActivities =
-                           joinRecords.Tables["dailyJoins"].Select("Activity = '" + clickedButton.Text +"'");
-
-                        //If we just unchecked this box and it was the final one to be used, make sure
-                        //nothing else is visible or checked
-                        if (previouslyUsedActivities.Length < 1 &&
-                                (joinRecords.Tables["dailyJoins"].Rows.Count >= activityCount - 1))
-                        {
-                            foreach (var ctl in parentGroup.Controls)
-                            {
-                                if (ctl is CheckBox)
-                                {
-                                    CheckBox curButton = (CheckBox)ctl;
-                                    if (!curButton.Equals(clickedButton))
-                                    {
-                                        curButton.Visible = false;
-                                        curButton.Checked = false;
-                                        curButton.BackgroundImage = GetBackgroundForClick();
-                                        curButton.Tag = "";
-                                    }
-                                }
-                            }
-                        }
-                    }
-
+                    chosenPeriods.Remove(chosenPeriods.Min());
                 }
-                catch
+                else
                 {
-                    MessageBox.Show("Failed in the clicked button");
+                    return i+1;
                 }
-                finally
+            }
+            return -1;
+
+        }
+
+        /**
+         * Perform necessary updates when the last box is checked.
+         */ 
+        private void checkLastBoxEarly(ref CheckBox lastChecked)
+        {
+            GroupBox parentGroup = lastChecked.Parent as GroupBox;
+            foreach (var ctl in parentGroup.Controls)
+            {
+                if (ctl is CheckBox)
                 {
-                    conn.Close();
+                    CheckBox curButton = (CheckBox)ctl;
+                    //We already set the last checked buttons style elsewhere
+                    curButton.Visible = true;
+                    curButton.Checked = false;
                 }
             }
 
+            //This was reset in the loop so make sure we set this back to checked
+            lastChecked.Checked = true;
+        }
+
+        /**
+         * Get the parent group of the button and check the checked state of all the other activities
+         */ 
+        private void populateOtherStudentActivityInformation(CheckBox clickedButton, ref List<int> chosenPeriods,
+            ref int clickedCount, ref bool allOthersInvisible)
+        {
+            GroupBox parentGroup = clickedButton.Parent as GroupBox;
+            foreach (var ctl in parentGroup.Controls)
+            {
+                if (ctl is CheckBox)
+                {
+                    CheckBox curButton = (CheckBox)ctl;
+
+                    //We don't want to include ourself in these counts
+                    if (!curButton.Equals(clickedButton))
+                    {
+                        if (curButton.Checked)
+                        {
+                            clickedCount++;
+                            int curTag = atoi((String)curButton.Tag);
+                            chosenPeriods.Add(curTag);
+                        }
+                        
+                        //If we haven't found a button that's visible...
+                        if (allOthersInvisible && curButton.Visible)
+                        {
+                            allOthersInvisible = false;
+                        }
+                    }
+                }
+            }
         }
 
         /**
@@ -855,84 +790,7 @@ namespace StudentActivityTracker
 
     } //End of Class
 
-    /// <summary>
-    /// Selected Win AI Function Calls
-    /// </summary>
 
-    public class WinApi
-    {
-        [DllImport("user32.dll", EntryPoint = "GetSystemMetrics")]
-        public static extern int GetSystemMetrics(int which);
-
-        [DllImport("user32.dll")]
-        public static extern void
-            SetWindowPos(IntPtr hwnd, IntPtr hwndInsertAfter,
-                         int X, int Y, int width, int height, uint flags);
-
-        private const int SM_CXSCREEN = 0;
-        private const int SM_CYSCREEN = 1;
-        private static IntPtr HWND_TOP = IntPtr.Zero;
-        private const int SWP_SHOWWINDOW = 64; // 0x0040
-
-        public static int ScreenX
-        {
-            get { return GetSystemMetrics(SM_CXSCREEN); }
-        }
-
-        public static int ScreenY
-        {
-            get { return GetSystemMetrics(SM_CYSCREEN); }
-        }
-
-        public static void SetWinFullScreen(IntPtr hwnd)
-        {
-            SetWindowPos(hwnd, HWND_TOP, 0, 0, ScreenX, ScreenY, SWP_SHOWWINDOW);
-        }
-    }
-
-    //TODO::This code is open source and can probably be removed once resize is implemented correctly
-    /// <summary>
-    /// Class used to preserve / restore state of the form
-    /// </summary>
-    public class FormState
-    {
-        private FormWindowState winState;
-        private FormBorderStyle brdStyle;
-        private bool topMost;
-        private Rectangle bounds;
-
-        private bool IsMaximized = false;
-
-        public void Maximize(Form targetForm)
-        {
-            if (!IsMaximized)
-            {
-                IsMaximized = true;
-                Save(targetForm);
-                targetForm.WindowState = FormWindowState.Maximized;
-                //targetForm.FormBorderStyle = FormBorderStyle.None;
-                targetForm.TopMost = true;
-                WinApi.SetWinFullScreen(targetForm.Handle);
-            }
-        }
-
-        public void Save(Form targetForm)
-        {
-            winState = targetForm.WindowState;
-            brdStyle = targetForm.FormBorderStyle;
-            topMost = targetForm.TopMost;
-            bounds = targetForm.Bounds;
-        }
-
-        public void Restore(Form targetForm)
-        {
-            targetForm.WindowState = winState;
-            targetForm.FormBorderStyle = brdStyle;
-            targetForm.TopMost = topMost;
-            targetForm.Bounds = bounds;
-            IsMaximized = false;
-        }
-    }
 }
 
 
