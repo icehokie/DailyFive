@@ -11,12 +11,15 @@ namespace StudentActivityTracker
      */ 
     class DailyFiveDB
     {
+        DailyFiveUpdater dbUpdate = new DailyFiveUpdater();
         const String DataSource = "DailyFive.mdb";
         DataSet dataMap;
 
         DataSet weeklyData;
         DataSet dailyData;
         System.Data.OleDb.OleDbDataAdapter dailyAdapter;
+        System.Data.OleDb.OleDbDataAdapter activityAdapter;
+        System.Data.OleDb.OleDbDataAdapter studentAdapter;
 
         System.Data.OleDb.OleDbConnection conn;
         DateTime curDate;
@@ -38,16 +41,16 @@ namespace StudentActivityTracker
          */ 
         private void loadPersistentData()
         {
-            System.Data.OleDb.OleDbDataAdapter da;
             try
             {
                 conn.Open();
                 String sql = "SELECT ActivityName, PeriodMax, Id From Activities";
-                da = new System.Data.OleDb.OleDbDataAdapter(sql, conn);
-                da.Fill(dataMap, "Activities");
+                activityAdapter = new System.Data.OleDb.OleDbDataAdapter(sql, conn);
+                activityAdapter.UpdateCommand = new System.Data.OleDb.OleDbCommandBuilder(activityAdapter).GetUpdateCommand();
+                activityAdapter.Fill(dataMap, "Activities");
                 sql = "SELECT * From Students";
-                da = new System.Data.OleDb.OleDbDataAdapter(sql, conn);
-                da.Fill(dataMap, "Students");
+                studentAdapter = new System.Data.OleDb.OleDbDataAdapter(sql, conn);
+                studentAdapter.Fill(dataMap, "Students");
             }
             catch (Exception ex)
             {
@@ -185,7 +188,7 @@ namespace StudentActivityTracker
             String period = "0";
             if (currentlyCheckedRows.Length > 0)
             {
-                period = currentlyCheckedRows[0].Field<string>("Period");
+                period = currentlyCheckedRows[0].Field<string>("Period").ToString();
             }
             return period;
         }
@@ -399,6 +402,21 @@ namespace StudentActivityTracker
         public int getStudentIdForNumber(int studentNumber)
         {
             return atoi(dataMap.Tables["Students"].Rows[studentNumber].ItemArray.GetValue(0).ToString());
+        }
+
+        public DataSet getActivityPeriodDataSet()
+        {
+            return dataMap;
+        }
+
+        public String getActivityTableName()
+        {
+            return "Activities";
+        }
+
+        public void SaveActivityPeriodEdit()
+        {
+            activityAdapter.Update(dataMap, "Activities");
         }
     }
 }

@@ -43,7 +43,7 @@ namespace StudentActivityTracker
 
             //TODO: Probably need to figure out how to resize now that there is the capability
             fState = new FormState();
-            //fState.Maximize(this);
+            fState.Maximize(this);
             this.Text = "Daily Five";
             this.MinimizeBox = true;
 
@@ -235,8 +235,12 @@ namespace StudentActivityTracker
             TabPage controlPage = (TabPage)bg.Controls.Find("controlPage", false)[0];
             Button saveButton = (Button)controlPage.Controls.Find("controlSave", false)[0];
             DateTimePicker controlDate = (DateTimePicker)controlPage.Controls.Find("controlDate", false)[0];
+            DataGridView activityEdit = (DataGridView)controlPage.Controls.Find("activityEdit", false)[0];
             controlDate.Left = saveButton.Left;
             controlDate.Top = saveButton.Bottom + 5;
+
+            activityEdit.Left = controlDate.Left;
+            activityEdit.Top = controlDate.Bottom + 5;
         }
 
         /**
@@ -287,10 +291,17 @@ namespace StudentActivityTracker
             DateTimePicker controlDate = new DateTimePicker();
             controlDate.Name = "controlDate";
             controlDate.Value = curDate;
-            controlDate.Left = saveButton.Left;
-            controlDate.Top = saveButton.Bottom + 5;
             controlPage.Controls.Add(controlDate);
             controlDate.ValueChanged += new EventHandler(this.ControlDate_ValueChanged);
+
+            DataGridView activityEdit = new DataGridView();
+            activityEdit.Name = "activityEdit";
+            activityEdit.DataSource = db.getActivityPeriodDataSet();
+            activityEdit.DataMember = db.getActivityTableName() ;
+            activityEdit.DataBindingComplete +=
+                new DataGridViewBindingCompleteEventHandler(activityEdit_DataBindingComplete);
+            activityEdit.AutoSize = true;
+            controlPage.Controls.Add(activityEdit);
 
             bg.TabPages.Add(controlPage);
         }
@@ -501,6 +512,9 @@ namespace StudentActivityTracker
                     }
                 }
             }
+
+            db.SaveActivityPeriodEdit();
+
             string message = "Successfully Saved Daily Five Records";
             string caption = "Save Completed";
             MessageBoxButtons buttons = MessageBoxButtons.OK;
@@ -785,6 +799,16 @@ namespace StudentActivityTracker
         {
             TabControl backgroundPage = this.Controls["backgroundPage"] as TabControl;
             backgroundPage.SelectedIndex = backgroundPage.SelectedIndex - 1;
+        }
+
+        // Handle the BindingComplete event to catch errors and exceptions 
+        // in binding process.
+        void activityEdit_DataBindingComplete(object sender,
+            DataGridViewBindingCompleteEventArgs e)
+        {
+            DataGridView activityEdit = (DataGridView)sender;
+            activityEdit.Columns["Id"].Visible = false;
+            activityEdit.Columns["ActivityName"].ReadOnly = true;
         }
 
 
